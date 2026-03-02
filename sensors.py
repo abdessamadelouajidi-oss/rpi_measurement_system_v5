@@ -150,69 +150,84 @@ class Accelerometer(Sensor):
 
 class HallSensor:
     """
-    Hall effect sensor for counting rotations using GPIO edge detection.
+    Threaded polling hall sensor.
+    Counts ONLY ONE per "interaction":
+      - counts on HIGH -> LOW
+      - then locks until signal returns to HIGH and stays stable for a few samples
     """
 
     def __init__(
         self,
         pin,
         pull_up=True,
-        edge="FALLING",
-        debounce_ms=10,
-        min_interval_s=0.0,
         name="HALL_SENSOR",
+        poll_hz=800,
+        stable_samples=5,
     ):
-        self.pin = pin
-        self.pull_up = pull_up
-        self.edge = edge
-        self.debounce_ms = debounce_ms
-        self.min_interval_s = min_interval_s
+        self.pin = int(pin)
+        self.pull_up = bool(pull_up)
         self.name = name
+        self.poll_hz = int(poll_hz)
+        self.stable_samples = max(1, int(stable_samples))
+
         self.GPIO = None
         self._count = 0
-        self._last_event_time = 0.0
         self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._thread = None
 
         try:
             import RPi.GPIO as GPIO
 
             self.GPIO = GPIO
+            GPIO.setwarnings(False)
             GPIO.setmode(GPIO.BCM)
-            pull = GPIO.PUD_UP if pull_up else GPIO.PUD_DOWN
-            GPIO.setup(pin, GPIO.IN, pull_up_down=pull)
+            try:
+                GPIO.cleanup(self.pin)
+            except Exception:
+                pass
 
-            edge_const = self._map_edge(edge)
-            GPIO.add_event_detect(
-                pin,
-                edge_const,
-                callback=self._on_edge,
-                bouncetime=max(0, int(debounce_ms)),
+            pull = GPIO.PUD_UP if self.pull_up else GPIO.PUD_DOWN
+            GPIO.setup(self.pin, GPIO.IN, pull_up_down=pull)
+
+            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread.start()
+
+            print(
+                f"[{self.name}] Polling GPIO {self.pin} at ~{self.poll_hz} Hz "
+                f"(one-count-per-interaction, stable_samples={self.stable_samples})"
             )
-            print(f"[{self.name}] Initialized on GPIO {pin} (edge={edge})")
         except ImportError:
             print(f"[{self.name}] Warning: RPi.GPIO not available, using simulated mode")
         except Exception as e:
-            print(f"[{self.name}] Warning: Could not initialize - {e}")
+            print(f"[{self.name}] Warning: Could not initialize - {type(e).__name__}: {e}")
 
-    def _map_edge(self, edge):
-        if self.GPIO is None:
-            return None
-        if isinstance(edge, int):
-            return edge
-        edge_upper = str(edge).upper()
-        if edge_upper == "RISING":
-            return self.GPIO.RISING
-        if edge_upper == "BOTH":
-            return self.GPIO.BOTH
-        return self.GPIO.FALLING
+    def _run(self):
+        period = 1.0 / self.poll_hz if self.poll_hz > 0 else 0.001
+        armed = True
+        high_streak = 0
+        last = self.GPIO.input(self.pin)
 
-    def _on_edge(self, _channel):
-        now = time.monotonic()
-        if self.min_interval_s and (now - self._last_event_time) < self.min_interval_s:
-            return
-        self._last_event_time = now
-        with self._lock:
-            self._count += 1
+        while not self._stop.is_set():
+            cur = self.GPIO.input(self.pin)
+
+            if armed:
+                if last == 1 and cur == 0:
+                    with self._lock:
+                        self._count += 1
+                    armed = False
+                    high_streak = 0
+            else:
+                if cur == 1:
+                    high_streak += 1
+                    if high_streak >= self.stable_samples:
+                        armed = True
+                        high_streak = 0
+                else:
+                    high_streak = 0
+
+            last = cur
+            time.sleep(period)
 
     def get_count(self):
         with self._lock:
@@ -221,13 +236,16 @@ class HallSensor:
     def reset_count(self):
         with self._lock:
             self._count = 0
-        self._last_event_time = 0.0
 
     def cleanup(self):
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
+
         if self.GPIO is None:
             return
         try:
-            self.GPIO.remove_event_detect(self.pin)
+            self.GPIO.cleanup(self.pin)
         except Exception:
             pass
 

@@ -1,4 +1,4 @@
-# Raspberry Pi Vibration Measurement System v4
+# Raspberry Pi Vibration Measurement System v5
 
 A service-friendly, console-only vibration measurement system for Raspberry Pi. This version runs continuously (no buttons or LEDs) until the service is stopped.
 
@@ -15,13 +15,13 @@ A service-friendly, console-only vibration measurement system for Raspberry Pi. 
 ## Project Structure
 
 ```
-rpi_measurement_system_v4/
+rpi_measurement_system_v5/
 |- main.py              # Main application entry point
 |- sensors.py           # Accelerometer, ToF, Hall sensor classes
 |- config.py            # Configuration settings (pins, intervals)
-|- state_machine.py     # Unused in v4 (left for reference)
-|- buttons.py           # Unused in v4 (left for reference)
-|- leds.py              # Unused in v4 (left for reference)
+|- state_machine.py     # Unused in v5 (left for reference)
+|- buttons.py           # Unused in v5 (left for reference)
+|- leds.py              # Unused in v5 (left for reference)
 |- requirements.txt     # Python dependencies
 `- README.md            # This file
 ```
@@ -66,7 +66,7 @@ Raspberry Pi Vibration Measurement System
 
 [ACCELEROMETER] Initialized on bus 1, address 0x1C
 [TOF] Initialized VL53L0X on I2C (0x29)
-[HALL_SENSOR] Initialized on GPIO 22 (edge=FALLING)
+[HALL_SENSOR] Polling GPIO 22 at ~800 Hz (one-count-per-interaction, stable_samples=5)
 
 System started. Running continuously.
 Stop the service or press Ctrl+C to stop and save.
@@ -80,7 +80,7 @@ Stop the service or press Ctrl+C to stop and save.
 
 - All pins and options are configurable in `config.py`
 - The Hall sensor count is logged per row as `spin_count`
-- If you see double counts, increase `HALL_DEBOUNCE_MS` or `HALL_MIN_INTERVAL_S`
+- If you see double counts, increase `HALL_STABLE_SAMPLES` and check wiring quality
 - Press Ctrl+C to safely stop when running manually
 
 ## Dependencies
