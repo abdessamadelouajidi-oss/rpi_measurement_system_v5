@@ -128,7 +128,7 @@ class MeasurementSystem:
     # otherwise USB copy later will say "No readings to copy yet."
     # self.readings.clear()
 
-        print("\n[POWER] Measurement stopped. Returned to IDLE.")")
+        print("\n[POWER] Measurement stopped. Returned to IDLE.")
 
     def read_vibration(self):
         """Read accelerometer and print vibration data."""
