@@ -118,16 +118,17 @@ class MeasurementSystem:
 
     def on_shutdown(self):
         if self.state_machine.is_measuring():
-            self.state_machine.stop_measurement()
+        self.state_machine.stop_measurement()
 
         self.measuring_led.turn_off()
         self.idle_led.turn_on()
         self.save_readings_to_csv()
 
-        # NEU: nach "Stop & Save" sauber für den nächsten Start
-        self.readings.clear()
+    # IMPORTANT: do NOT clear readings here,
+    # otherwise USB copy later will say "No readings to copy yet."
+    # self.readings.clear()
 
-        print("\n[POWER] Measurement stopped. Returned to IDLE.")
+        print("\n[POWER] Measurement stopped. Returned to IDLE.")")
 
     def read_vibration(self):
         """Read accelerometer and print vibration data."""
